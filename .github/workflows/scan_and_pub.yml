@@ -1,0 +1,92 @@
+name: Scan and publish
+
+on:
+  push:
+    branches-ignore: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'cpp' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+
+    - name: Set up Ubuntu environment
+      run: |
+        sudo apt-get update && sudo apt-get install -y \
+          g++ \
+          make \
+          cmake \
+          libssl-dev \
+          pkg-config \
+          build-essential \
+          && sudo rm -rf /var/lib/apt/lists/*
+
+    - name: Build code
+      run: |
+        g++ -std=c++17 -O2 -Wno-deprecated-declarations \
+          -I include \
+          -o fileserver \
+          src/main.cpp src/shell.cpp src/fs_utils.cpp src/encrypted_fs.cpp src/crypto_utils.cpp \
+          src/user_metadata.cpp src/shared_metadata.cpp src/sharing_key_manager.cpp src/utils.cpp \
+          src/password_utils.cpp \
+          -lssl -lcrypto
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  create_artifact:
+    name: Create Artifact
+    runs-on: ubuntu-latest
+    needs: analyze
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Ubuntu environment
+      run: |
+        sudo apt-get update && sudo apt-get install -y \
+          g++ \
+          make \
+          cmake \
+          libssl-dev \
+          pkg-config \
+          build-essential \
+          && sudo rm -rf /var/lib/apt/lists/*
+
+    - name: Build code
+      run: |
+        g++ -std=c++17 -O2 -Wno-deprecated-declarations \
+          -I include \
+          -o fileserver \
+          src/main.cpp src/shell.cpp src/fs_utils.cpp src/encrypted_fs.cpp src/crypto_utils.cpp \
+          src/user_metadata.cpp src/shared_metadata.cpp src/sharing_key_manager.cpp src/utils.cpp \
+          src/password_utils.cpp \
+          -lssl -lcrypto
+
+    - name: Upload build artifacts
+      if: github.event_name == 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: fileserver
+        path: fileserver
