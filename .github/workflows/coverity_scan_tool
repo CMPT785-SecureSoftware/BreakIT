@@ -1,0 +1,31 @@
+name: Coverity Scan
+on: 
+  workflow_dispatch:  # Allows manual triggering
+jobs:
+  coverity-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: sudo apt-get install -y build-essential cmake
+
+      - name: Download Coverity
+        run: |
+          wget https://scan.coverity.com/download/linux64 --post-data "token=${{ secrets.COVERITY_PASSPHRASE }}&project=CMPT785-SecureSoftware/BreakIT" -O coverity_tool.tgz
+          tar -xvzf coverity_tool.tgz
+
+      - name: Build with Coverity
+        run: ./cov-analysis-linux64-*/bin/cov-build --dir cov-int make
+
+      - name: Compress Results
+        run: tar czvf analysis.tar.gz cov-int
+
+      - name: Upload to Coverity
+        run: curl --form token=${{ secrets.COVERITY_PASSPHRASE }} \
+                  --form email=danush.adhitya14@gmail.com \
+                  --form file=@analysis.tar.gz \
+                  --form version="1.0" \
+                  --form description="Static Analysis" \
+                  https://scan.coverity.com/builds?project=CMPT785-SecureSoftware/BreakIT
